@@ -28,17 +28,20 @@ description: 交互式论文阅读助手。触发词："读论文"、"分析这�
 - 非学术类 PDF（技术报告、手册、书籍章节）→ 用普通对话处理
 - 用户只想快速查术语/公式 → 直接回答，无需走三阶段流程
 
-## Step 0: 读取共享配置
+## Step 0: 初始化配置
 
-先读取 `../_shared/user-config.json`，如果 `../_shared/user-config.local.json` 存在，再用它覆盖。
+**共享配置**（`../_shared/user-config.json`）：如果存在则读取，`user-config.local.json` 覆盖默认值。如果不存在，**直接询问用户**（不要尝试读取不存在的文件）：
 
-显式生成并在后续统一使用这些变量：
+> "需要配置 Obsidian vault 路径才能保存笔记。请告诉我：
+> 1. Obsidian vault 的绝对路径（如 `/mnt/e/Obsidian`）
+> 2. 笔记保存的子目录名（默认：`论文笔记`）
+> 3. 概念库保存的子目录名（默认：`_概念`）"
+
+用户回答后，显式生成并在后续统一使用这些变量：
 - `VAULT_PATH` — Obsidian vault 根路径
-- `NOTES_PATH = {VAULT_PATH}/{paper_notes_folder}`
-- `CONCEPTS_PATH = {NOTES_PATH}/{concepts_folder}`
+- `NOTES_PATH = {VAULT_PATH}/{paper_notes_folder}`（默认 `论文笔记`）
+- `CONCEPTS_PATH = {NOTES_PATH}/{concepts_folder}`（默认 `_概念`）
 - `SKILL_ROOT` — 本 skill 所在目录的绝对路径（即 SKILL.md 所在目录）
-
-如果配置文件不存在，询问用户 vault 路径和笔记保存位置。
 
 在开始处理前，检查关键工具可用性：
 - `which curl` — 图片可达性检测
