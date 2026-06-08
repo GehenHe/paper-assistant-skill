@@ -2,6 +2,7 @@
 title: "{Title}"
 method_name: "{MethodName}"
 authors: [{Authors}]
+institutions: [{Institutions}]
 year: {Year}
 venue: "{Venue}"
 conference: "{Conference}"

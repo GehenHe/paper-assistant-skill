@@ -40,6 +40,12 @@ description: 交互式论文阅读助手。触发词："读论文"、"分析这�
 
 如果配置文件不存在，询问用户 vault 路径和笔记保存位置。
 
+在开始处理前，检查关键工具可用性：
+- `which curl` — 图片可达性检测
+- `which pdfimages` — PDF 图片提取（不可用时标记为 fallback-only）
+
+如果工具不可用影响了输出质量，在处理过程中明确告知用户原因和修复方法（如 `sudo apt install poppler-utils`）。
+
 ## Phase 1: 初读建骨架
 
 ### 1.1 接收论文
@@ -64,27 +70,24 @@ HTML 不可用时 fallback 到 PDF 读取。
 - **图表**：所有 Figure 的编号、描述、URL；所有 Table 的完整数据
 - **初步思考**：亮点、局限、待深入问题
 
-### 1.3 图片获取与验证
-
-**获取图片 URL**（多源 fallback）：
-
-1. **arXiv HTML**（首选）：WebFetch `arxiv.org/html/{arxiv_id}`，提取 `<figure>` 中的图片 URL 和 Figure 标题
-2. **项目主页**（补充）：从摘要中查找项目主页 URL，WebFetch 提取展示图片
-3. **PDF 提取**（兜底）：`pdfimages -png` 提取，筛选 >10KB 的有效图片；无 `pdfimages` 时可用 PyMuPDF/fitz 按页截图
-
-HTML 不可用时逐级降级，不静默跳过。
-
-**URL 去重规则**：拼接 arXiv 图片相对路径时，检查 URL 中是否出现重复的 arxiv_id 段（如 `2501.12345v1/2501.12345v1/`），有则删除重复。ar5iv 的 asset 编号不一定对应 Figure 编号，需对照 caption 验证。详见 `references/image-troubleshooting.md`。
-
-**写入规则**：外链用 `![Figure X](url)`，本地用 `![[local.png]]`。至少 1 张关键方法图/系统图必须有实际图片嵌入，不能只有标题和说明。
-
-**可达性检查**（笔记保存后立即执行）：
+### 1.3 图片获取
 
 ```bash
-python3 {SKILL_ROOT}/scripts/download_note_images.py "{NOTES_PATH}/{YYYY}/{来源}/{MethodName}.md"
+python3 {SKILL_ROOT}/scripts/acquire_images.py \
+  --arxiv-id {arxiv_id} \
+  --output-dir "{笔记路径}/assets" \
+  --method-name {MethodName}
 ```
 
-并发检测外链可达性，不可达的自动下载到 `assets/` 并替换为 wikilink，frontmatter `image_source` 自动更新。需要 `curl`；PDF 提取 fallback 可选需要 `pdfimages`。
+脚本执行两级 fallback：arXiv HTML（提取 `<figure>` 图片 URL + caption）→ PDF 提取（`pdfimages` 或 PyMuPDF/fitz 兜底），返回结构化 JSON。
+
+- `ref_type: url` → 写入 `![Figure X: caption](url)`
+- `ref_type: local` → 写入 `![[local_name.png]]`
+- 所有来源均失败 → 用 `> 📝 图片缺失：{原因}` 文字描述替代，**严禁**在文件不存在时写入本地引用
+
+URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md`。
+
+笔记保存后，运行 `download_note_images.py` 对 arXiv 外链做可达性检查。
 
 ### 1.4 生成初步笔记
 
@@ -123,22 +126,27 @@ python3 {SKILL_ROOT}/scripts/download_note_images.py "{NOTES_PATH}/{YYYY}/{来�
 
 ### 2.3 话题总结写入
 
-将围绕该话题的问答**压缩为一条结构化总结**，写入 `## 讨论与问答`：
+将围绕该话题的问答写入 `## 讨论与问答`。**以保留讨论细节为优先**——压缩的是冗余表达，不是信息量：
 
 ```markdown
 ### 话题{N}: {话题标题} `{date}`
 
-**讨论内容**:
-{整合后的连贯总结，不逐条罗列 Q&A}
+**讨论过程**:
+{保留问答的推理脉络。如果用户的多轮追问逐步推进了理解，保留这个递进过程。
+关键问答可以 Q&A 形式记录，但合并同一子话题的碎片化交流。}
 
 **关键结论**:
-- {结论1}
-- {结论2}
+- {从讨论中沉淀的洞察}
+- {被澄清的误解或新的理解}
 
 **关联概念**: [[概念1]] · [[概念2]]
 ```
 
-总结原则：提炼洞察和结论（不逐条记录）、保留论文引用位置（Section X, Eq X）、澄清的概念标注 `[[链接]]`。
+总结原则：
+- **保留推理过程**，不只是结论——用户需要看到"怎么得出这个结论的"
+- **保留论文引用位置**（Section X, Eq X, Figure X）——这是后续回溯的关键锚点
+- **保留反驳和修正**——如果讨论中纠正了某个误解，记录"为什么之前理解不准确"
+- 首次澄清的概念标注 `[[链接]]`
 
 ### 2.4 结束条件
 
@@ -159,9 +167,19 @@ python3 {SKILL_ROOT}/scripts/download_note_images.py "{NOTES_PATH}/{YYYY}/{来�
 
 ### 3.2 融合规则
 
-- 方法细节补充到 `## 方法概览` 对应模块，不另起炉灶
-- 新见解写入 `## 深入分析`，相关工作补充到 `## 相关工作`
-- `## 讨论与问答` 保留，在开头添加提示标注已融入的章节
+**融合 ≠ 压缩**。将讨论中沉淀的理解补充到笔记对应章节，但 `## 讨论与问答` 中的原始讨论记录**完整保留**——它记录了"理解是如何建立起来的"。
+
+| 讨论内容 | 融合方式 | 保留方式 |
+|----------|----------|----------|
+| 方法细节澄清 | 补充到 `## 方法概览` 对应模块 | 讨论原文保留，在方法处添加脚注 `[见讨论话题{N}]` |
+| 概念理解深化 | 正文首次出现处补充 `[[概念]]` 链接 | 讨论中"为什么这个概念重要"的推理过程保留 |
+| 批判性思考 | 写入 `## 深入分析` | 讨论中的质疑逻辑链保留 |
+| 实验设计讨论 | 补充到 `## 实验` 对应子节 | 讨论中"为什么这个实验设计好/不好"的论证保留 |
+
+**不要做的事**：
+- 不要因为"方法细节已经写进方法概览了"就删掉讨论原文中"怎么理解这个细节"的推理
+- 不要只保留结论——一个"ICT 是关键"的结论没有"为什么 2D trace 单独只提升 5pp 但组合提升 25pp"的推理有价值
+- `## 讨论与问答` 开头添加提示，标注哪些话题已融入其他章节
 
 ### 3.3 补充概念库
 
@@ -190,8 +208,12 @@ python3 {SKILL_ROOT}/scripts/download_note_images.py "{NOTES_PATH}/{YYYY}/{来�
 
 ## 前置依赖
 
-- `curl` — 图片可达性检测和下载（Phase 1.3）
-- `poppler-utils`（`pdfimages`）— PDF 图片提取 fallback（可选）
+| 依赖 | 级别 | 缺失时行为 |
+|------|:---:|------|
+| `curl` | **必需** | Phase 1.3 可达性检查跳过，保留外链不本地化 |
+| `poppler-utils`（`pdfimages`） | **图片 fallback** | PDF 图片提取不可用；有 arXiv HTML 则用外链，否则用文字描述替代图片引用 |
+
+环境缺少必需依赖时在 Step 0 即告知，不推迟到 Phase 1.3 静默跳过。
 
 ## 参考文件
 
