@@ -48,18 +48,35 @@ description: 交互式论文阅读助手。触发词："读论文"、"分析这�
 
 ## Phase 1: 初读建骨架
 
-### 1.1 接收论文
+### 1.1 论文发现与获取
 
-| 输入方式 | 处理方法 |
+```bash
+python3 {SKILL_ROOT}/lib/discover.py "{用户输入}"
+```
+
+自动识别输入类型（arXiv 链接/标题/DOI/本地 PDF/HuggingFace URL），按优先级搜索：
+
+| 输入类型 | 发现路径 |
 |----------|----------|
-| arXiv 链接 | WebFetch HTML 版本（`arxiv.org/html/`），优先获取图文 |
-| 本地 PDF | Read 工具直接读取 |
-| DOI 链接 | 解析后尝试 arXiv 版本，否则直接读取 |
-| 论文标题 | WebSearch 找到 arXiv 版本 |
+| arXiv 链接 | 直接解析 ID → HTML 优先 → PDF 兜底 |
+| 论文标题 | arXiv 搜索 → 未找到 → technical report pdf → HuggingFace/GitHub/官网 |
+| 本地 PDF / DOI / PDF URL | 直接定位并下载 |
 
-HTML 不可用时 fallback 到 PDF 读取。
+返回 JSON：`source_type`, `arxiv_id`, `pdf_path`, `metadata`。
+每步失败记录原因，不静默跳过。
 
-### 1.2 提取核心信息
+### 1.2 内容提取
+
+```bash
+python3 {SKILL_ROOT}/lib/extract.py --pdf {pdf_path}
+```
+
+>30 页自动启用目录优先策略：
+
+| 策略 | 提取范围 |
+|------|----------|
+| 短论文（≤30 页） | 完整提取 |
+| 长论文（>30 页） | ToC → Introduction（全文）→ Method（首段跳读）→ Experiments（主结果）→ Conclusion（全文）。Appendix 默认跳过 |
 
 从论文中提取：
 - **元数据**：标题、作者、机构、年份、会议/期刊、arXiv ID、DOI、项目主页
@@ -67,27 +84,27 @@ HTML 不可用时 fallback 到 PDF 读取。
 - **问题背景**：要解决的问题 + 现有方法局限 + 本文动机
 - **方法概览**：整体框架 → 核心模块（每模块1-2句话）→ 关键公式
 - **实验**：数据集、主要结果、消融实验
-- **图表**：所有 Figure 的编号、描述、URL；所有 Table 的完整数据
+- **图表**：所有 Figure 的编号、描述；所有 Table 的完整数据
 - **初步思考**：亮点、局限、待深入问题
 
 ### 1.3 图片获取
 
 ```bash
-python3 {SKILL_ROOT}/scripts/acquire_images.py \
-  --arxiv-id {arxiv_id} \
+python3 {SKILL_ROOT}/lib/images.py \
+  --arxiv-id {arxiv_id} | --pdf-path {pdf_path} \
   --output-dir "{笔记路径}/assets" \
   --method-name {MethodName}
 ```
 
-脚本执行两级 fallback：arXiv HTML（提取 `<figure>` 图片 URL + caption）→ PDF 提取（`pdfimages` 或 PyMuPDF/fitz 兜底），返回结构化 JSON。
+两级 fallback：arXiv HTML `<figure>` 提取 → PDF 提取（`pdfimages` 或 PyMuPDF/fitz）。返回结构化 JSON。
 
-- `ref_type: url` → 写入 `![Figure X: caption](url)`
-- `ref_type: local` → 写入 `![[local_name.png]]`
-- 所有来源均失败 → 用 `> 📝 图片缺失：{原因}` 文字描述替代，**严禁**在文件不存在时写入本地引用
+- `ref_type: url` → `![Figure X: caption](url)`
+- `ref_type: local` → `![[local_name.png]]`
+- 全部失败 → `> 📝 图片缺失：{原因}`，**严禁**在文件不存在时写入引用
 
 URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md`。
 
-笔记保存后，运行 `download_note_images.py` 对 arXiv 外链做可达性检查。
+笔记保存后，运行 `download_note_images.py` 对外链做可达性检查。
 
 ### 1.4 生成初步笔记
 
@@ -116,6 +133,7 @@ URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md
 用户在终端提问，Claude 在终端回答。**过程中不写笔记**——笔记只在话题结束时以总结形式写入。
 
 回答要求：基于论文原文 + 相关知识储备，引用具体段落/公式/图表编号，首次出现的术语用 `[[概念]]` 标注。
+不同问题类型的详细回答策略见 `references/discussion-guide.md`（8 类：概念解释/方法细节/问题定位/设计动机/实验分析/对比分析/局限批判/扩展思考）。
 
 ### 2.2 话题管理
 
