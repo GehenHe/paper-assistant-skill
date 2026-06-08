@@ -117,7 +117,7 @@ URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md
 - `来源`：`arxiv` / `NeurIPS` / `ICLR` / `ICML` / `CVPR` / `ICCV` / `ECCV` / `ACL` / `AAAI` / 其他
 - `MethodName`：方法名/模型名缩写
 
-笔记必须包含：YAML frontmatter、`## 元信息`、`## 一句话总结`、`## 核心贡献`、`## 问题背景`、`## 方法概览`、`## 实验`、`## 初步思考`、`## 讨论与问答`（初始为空）。
+笔记必须包含：YAML frontmatter、`## 元信息`、`## 任务介绍`、`## 一句话总结`、`## 核心贡献`、`## 问题背景`、`## 方法概览`、`## 实验`、`## 初步思考`、`## 讨论与问答`（初始为空）。
 
 **图表按语义分布到各 section**，不在末尾集中放置。分发规则见 `references/figure-placement.md`。
 
