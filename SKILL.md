@@ -109,13 +109,32 @@ URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md
 
 笔记保存后，运行 `download_note_images.py` 对外链做可达性检查。
 
-### 1.4 生成初步笔记
+### 1.4 确定方向并生成笔记
 
-按 `assets/paper-note-template.md` 模板生成，保存到 `{NOTES_PATH}/{YYYY}/{来源}/{MethodName}.md`。
+**1.4.1 确定方向**：列出 `{NOTES_PATH}` 下已有方向目录（`ls -d */`），展示给用户。然后询问：
 
-- `YYYY`：论文发表/arXiv 年份
+> "这篇论文保存到哪个研究方向？可以选择已有方向或输入新方向名称。"
+
+方向以目录形式管理——输入新名称则创建目录，输入已有名称则复用。方向目录名用英文小写 slug（如 `robot-learning`、`3d-vision`）。
+
+默认方向参考：
+- `3d-vision` — 3D 视觉与重建
+- `robot-learning` — 机器人学习与具身智能
+- `llm-agents` — 语言模型与智能体
+- `world-models-generation` — 世界模型与生成
+- `ml-methods` — 机器学习方法
+
+**1.4.2 生成笔记**：方向确认为 `{DIRECTION}` 后，按 `assets/paper-note-template.md` 模板生成，保存到：
+
+```
+{NOTES_PATH}/{DIRECTION}/{来源}{年份}-{方法名}.md
+```
+
+示例：`论文笔记/robot-learning/arxiv2026-HumanEgo.md`
+
 - `来源`：`arxiv` / `NeurIPS` / `ICLR` / `ICML` / `CVPR` / `ICCV` / `ECCV` / `ACL` / `AAAI` / 其他
 - `MethodName`：方法名/模型名缩写
+- 方向目录不存在则自动创建
 
 笔记必须包含：YAML frontmatter、`## 元信息`、`## 任务介绍`、`## 一句话总结`、`## 核心贡献`、`## 问题背景`、`## 方法概览`、`## 实验`、`## 初步思考`、`## 讨论与问答`（初始为空）。
 
@@ -204,8 +223,12 @@ URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md
 
 ### 3.3 补充概念库
 
-扫描笔记中所有 `[[概念]]` 链接，检查 `{CONCEPTS_PATH}/` 下是否存在。
-缺失的概念按 `references/concept-categories.md` 的 15 类体系归类创建（模板见该文件）。
+扫描笔记中所有 `[[概念]]` 链接，检查 `{CONCEPTS_PATH}/` 下是否存在对应 `.md` 文件。
+
+- **新概念**：按 `assets/concept-note-template.md` 模板创建，扁平存放在 `{CONCEPTS_PATH}/` 下
+- **已有概念**：在 `## 被引用` 节追加当前论文引用记录
+
+详细规则见 `references/concept-guide.md`。
 
 ### 3.4 收尾
 
@@ -244,5 +267,6 @@ URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md
 | `references/figure-placement.md` | 图表分发规则 | Phase 1.4 嵌入图表时 |
 | `references/quality-standards.md` | 笔记质量规范 + 自检清单 | Phase 1.6 质量检查时 |
 | `references/image-troubleshooting.md` | 图片获取排错指南 | Phase 1.3 图片获取时 |
-| `references/concept-categories.md` | 概念分类体系 + 概念笔记模板 | Phase 3.3 补充概念库时 |
+| `assets/concept-note-template.md` | 概念笔记模板 | Phase 3.3 创建概念时 |
+| `references/concept-guide.md` | 概念库维护完整指南 | Phase 3.3 补充概念库时 |
 | `scripts/download_note_images.py` | 图片可达性检查 + 本地化 | Phase 1.3 执行 |
