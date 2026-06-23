@@ -1,6 +1,12 @@
 ---
 name: paper-assistant
-description: 交互式论文阅读助手。触发词："读论文"、"分析这篇paper"、"论文笔记"、提供PDF/arXiv链接。三阶段流程：初读建骨架 → 多轮问答 → 融合讨论完善笔记。
+description: |
+  Interactive academic paper reading assistant. Use when the user asks to read or analyze
+  a paper, take paper notes, or provides a PDF / arXiv link / DOI / paper title — triggers
+  include "读论文", "读一下这篇", "帮我读这篇论文", "分析这篇paper", "论文笔记",
+  "继续讨论XX论文", "read this paper", "analyze this paper", "paper notes".
+  Three phases: initial skeleton note → multi-turn Q&A → merge insights into a structured
+  Obsidian note.
 ---
 
 # 交互式论文阅读助手
@@ -43,11 +49,13 @@ description: 交互式论文阅读助手。触发词："读论文"、"分析这�
 - `CONCEPTS_PATH = {NOTES_PATH}/{concepts_folder}`（默认 `_概念`）
 - `SKILL_ROOT` — 本 skill 所在目录的绝对路径（即 SKILL.md 所在目录）
 
-在开始处理前，检查关键工具可用性：
-- `which curl` — 图片可达性检测
-- `which pdfimages` — PDF 图片提取（不可用时标记为 fallback-only）
+在开始处理前，检查关键工具可用性（Windows 用 `where`，Linux/macOS 用 `which`）：
+- `curl --version` — 图片可达性检测
+- `pdfimages -v` / `where pdfimages` — PDF 图片提取（不可用时标记为 fallback-only）
 
 如果工具不可用影响了输出质量，在处理过程中明确告知用户原因和修复方法（如 `sudo apt install poppler-utils`）。
+
+> **跨平台约定**：下文命令块中的 `python3` 在 Windows 上为 `python`；临时目录 Linux/macOS 为 `/tmp`，Windows 为 `%TEMP%`（`lib/` 脚本已用 `tempfile` 自动处理）。
 
 ## Phase 1: 初读建骨架
 
@@ -68,11 +76,19 @@ python3 {SKILL_ROOT}/lib/discover.py "{用户输入}"
 返回 JSON：`source_type`, `arxiv_id`, `pdf_path`, `metadata`。
 每步失败记录原因，不静默跳过。
 
+> **降级路径（脚本不可用或返回 error 时）**：直接用原生能力获取，不要卡在脚本上——
+> - arXiv：直接抓取 `https://arxiv.org/html/{id}`（含图表与 caption），HTML 不可用时抓 `https://arxiv.org/abs/{id}` 取元数据 + 下载 `https://arxiv.org/pdf/{id}`。
+> - 标题：用 Web 搜索定位 arXiv/项目主页，再按上一条处理。
+> - 本地 PDF：直接读取。
+> 脚本只是加速器，不是唯一通道。哪条路径走通就用哪条，并记录实际来源。
+
 ### 1.2 内容提取
 
 ```bash
 python3 {SKILL_ROOT}/lib/extract.py --pdf {pdf_path}
 ```
+
+> **降级路径**：脚本不可用或返回 error 时，直接读取 arXiv HTML / 本地 PDF 文本来理解内容。`extract.py` 只是把正文切段输出，真正的理解与提取由你完成。
 
 >30 页自动启用目录优先策略：
 
@@ -107,11 +123,11 @@ python3 {SKILL_ROOT}/lib/images.py \
 
 URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md`。
 
-笔记保存后，运行 `download_note_images.py` 对外链做可达性检查。
+笔记保存后（Phase 1.5），运行 `scripts/download_note_images.py` 对外链做可达性检查。
 
 ### 1.4 确定方向并生成笔记
 
-**1.4.1 确定方向**：列出 `{NOTES_PATH}` 下已有方向目录（`ls -d */`），展示给用户。然后询问：
+**1.4.1 确定方向**：列出 `{NOTES_PATH}` 下已有方向目录（只列一级子目录，用 shell 或宿主的文件列举工具），展示给用户。然后询问：
 
 > "这篇论文保存到哪个研究方向？可以选择已有方向或输入新方向名称。"
 
@@ -152,7 +168,7 @@ URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md
 
 ### 2.1 问答模式
 
-用户在终端提问，Claude 在终端回答。**过程中不写笔记**——笔记只在话题结束时以总结形式写入。
+用户在终端提问，agent 在终端回答。**过程中不写笔记**——笔记只在话题结束时以总结形式写入。
 
 回答要求：基于论文原文 + 相关知识储备，引用具体段落/公式/图表编号，首次出现的术语用 `[[概念]]` 标注。
 不同问题类型的详细回答策略见 `references/discussion-guide.md`（8 类：概念解释/方法细节/问题定位/设计动机/实验分析/对比分析/局限批判/扩展思考）。
@@ -238,7 +254,7 @@ URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md
 ## 继续之前的讨论
 
 用户说"继续讨论 XX 论文"时：
-1. Glob 在 `{NOTES_PATH}` 下找到对应笔记并读取
+1. 在 `{NOTES_PATH}` 下按方法名检索对应笔记文件并读取
 2. 回顾 `## 讨论与问答` 和 `## 初步思考` 恢复上下文
 3. 直接进入 Phase 2，结束后进入 Phase 3
 
@@ -269,4 +285,4 @@ URL 去重、ar5iv 编号陷阱等排错见 `references/image-troubleshooting.md
 | `references/image-troubleshooting.md` | 图片获取排错指南 | Phase 1.3 图片获取时 |
 | `assets/concept-note-template.md` | 概念笔记模板 | Phase 3.3 创建概念时 |
 | `references/concept-guide.md` | 概念库维护完整指南 | Phase 3.3 补充概念库时 |
-| `scripts/download_note_images.py` | 图片可达性检查 + 本地化 | Phase 1.3 执行 |
+| `scripts/download_note_images.py` | 图片可达性检查 + 本地化 | Phase 1.5 笔记保存后执行 |

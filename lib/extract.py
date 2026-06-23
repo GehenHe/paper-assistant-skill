@@ -7,7 +7,6 @@ then selectively reads key sections. Short papers are fully extracted.
 Usage:
     python3 lib/extract.py --pdf /tmp/paper.pdf
     python3 lib/extract.py --pdf /tmp/paper.pdf --long-paper
-    python3 lib/extract.py --pdf /tmp/paper.pdf --sections "Introduction,Method,Conclusion"
 
 Output (JSON to stdout):
   {"toc": [...], "sections": {...}, "figures": [...], "stats": {...}}
@@ -19,6 +18,11 @@ import re
 import sys
 from pathlib import Path
 from typing import Optional
+
+_LIB = Path(__file__).resolve().parent
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+from common import force_utf8_stdout  # noqa: E402
 
 
 LONG_PAPER_THRESHOLD = 30  # pages
@@ -49,7 +53,8 @@ def extract_text_pages(pdf_path: str) -> tuple[list[str], int]:
         try:
             proc = subprocess.run(
                 ["pdftotext", "-layout", pdf_path, "-"],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=60,
             )
             if proc.returncode == 0:
                 # Can't split by page with pdftotext alone
@@ -175,7 +180,6 @@ def extract_sections(pages: list[str], toc: list[dict],
 
     if long_paper and toc:
         # Determine page ranges for key sections from ToC
-        intro_page = 1
         method_start = None
         experiment_start = None
         conclusion_start = None
@@ -183,8 +187,6 @@ def extract_sections(pages: list[str], toc: list[dict],
 
         for t in toc:
             kw = _section_keywords(t["title"])
-            if "introduction" in kw and not intro_page:
-                intro_page = t["page"]
             if "method" in kw and not method_start:
                 method_start = t["page"]
             if "experiments" in kw and not experiment_start:
@@ -194,7 +196,8 @@ def extract_sections(pages: list[str], toc: list[dict],
             if "appendix" in kw and not appendix_start:
                 appendix_start = t["page"]
 
-        # Introduction (first 3 pages or until method section)
+        # Introduction: from the start (captures title/abstract/intro) up to
+        # the method/experiment section, capped at 5 pages.
         intro_end = min(
             method_start or total, experiment_start or total, 5
         )
@@ -282,6 +285,7 @@ def extract(pdf_path: str, long_paper: bool = False) -> dict:
 
 
 def main():
+    force_utf8_stdout()
     parser = argparse.ArgumentParser(
         description="Extract paper content with ToC-first strategy"
     )

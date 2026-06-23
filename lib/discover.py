@@ -28,6 +28,11 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+_LIB = Path(__file__).resolve().parent
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+from common import extract_arxiv_id, force_utf8_stdout, tmp_path  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # Utilities
@@ -37,10 +42,9 @@ CURL_TIMEOUT = 30
 PDF_MIN_SIZE = 1024  # 1KB minimum for valid PDF
 
 
-def extract_arxiv_id(text: str) -> Optional[str]:
-    """Extract arxiv ID (e.g. 2605.24934) from a URL or text."""
-    m = re.search(r'(\d{4}\.\d{4,5})', text)
-    return m.group(1) if m else None
+def _tmp(filename: str) -> str:
+    """Return a platform-appropriate temp file path as a string."""
+    return str(tmp_path(filename))
 
 
 def is_arxiv_url(text: str) -> bool:
@@ -65,7 +69,8 @@ def curl_fetch(url: str, timeout: int = CURL_TIMEOUT) -> Optional[str]:
     try:
         proc = subprocess.run(
             ["curl", "-sL", "--max-time", str(timeout), url],
-            capture_output=True, text=True, timeout=timeout + 5,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=timeout + 5,
         )
         if proc.returncode == 0 and proc.stdout:
             return proc.stdout
@@ -141,7 +146,7 @@ def handle_arxiv(arxiv_id: str) -> dict:
 
     # Fallback: download PDF
     pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-    pdf_path = f"/tmp/arxiv_{arxiv_id}.pdf"
+    pdf_path = _tmp(f"arxiv_{arxiv_id}.pdf")
     if curl_download(pdf_url, pdf_path):
         result["pdf_path"] = pdf_path
     else:
@@ -200,15 +205,15 @@ def handle_title(title: str) -> dict:
         )
         # Also try the simple ID extraction as fallback
         arxiv_ids = re.findall(r'arXiv:(\d{4}\.\d{4,5})', arxiv_result)
-        # Prefer the first ID that has a matching title, else just first ID
+        # Prefer the first ID that has a matching title
         for entry_title, aid in paper_entries:
             entry_title_clean = re.sub(r'<[^>]+>', '', entry_title).strip().lower()
             if title.lower()[:30] in entry_title_clean or entry_title_clean in title.lower():
                 arxiv_info = handle_arxiv(aid)
                 arxiv_info["metadata"]["title"] = title
                 return arxiv_info
-        # No title match — try first arXiv ID anyway if found
-        if arxiv_ids and not paper_entries:
+        # No title match — fall back to first arXiv ID found (title or ID search)
+        if arxiv_ids:
             arxiv_info = handle_arxiv(arxiv_ids[0])
             arxiv_info["metadata"]["title"] = title
             return arxiv_info
@@ -228,21 +233,15 @@ def handle_title(title: str) -> dict:
     title_lower = title.lower()
     for keyword, org in hf_orgs.items():
         if keyword in title_lower:
-            # Try common PDF paths on HuggingFace
+            # Try common PDF paths on HuggingFace, derived from the title
             model_name = title.split(":")[0].strip().replace(" ", "-")
             hf_urls = [
                 f"https://huggingface.co/{org}/{model_name}/resolve/main/paper.pdf",
-                f"https://huggingface.co/{org}/{model_name}/blob/main/report.pdf",
+                f"https://huggingface.co/{org}/{model_name}/resolve/main/report.pdf",
             ]
-            # Also try with original model name from title
-            if "deepseek" in title_lower:
-                hf_urls = [
-                    "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/resolve/main/DeepSeek_V4.pdf",
-                    "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/DeepSeek_V4.pdf",
-                ]
             for url in hf_urls:
                 fname = re.sub(r'[^a-zA-Z0-9_.-]', '_', title)[:50]
-                pdf_path = f"/tmp/{fname}.pdf"
+                pdf_path = _tmp(f"{fname}.pdf")
                 if curl_download(url, pdf_path, timeout=60):
                     result["pdf_path"] = pdf_path
                     result["source_type"] = "hf_pdf"
@@ -287,7 +286,7 @@ def handle_doi(doi: str) -> dict:
 def handle_direct_pdf_url(url: str) -> dict:
     fname = re.search(r'([^/]+)\.pdf', url)
     local_name = fname.group(1) if fname else "paper"
-    pdf_path = f"/tmp/{local_name}.pdf"
+    pdf_path = _tmp(f"{local_name}.pdf")
     ok = curl_download(url, pdf_path, timeout=120)
     source_type = "hf_pdf" if "huggingface" in url else "url_pdf"
     return {
@@ -331,6 +330,7 @@ def discover(user_input: str) -> dict:
 
 
 def main():
+    force_utf8_stdout()
     parser = argparse.ArgumentParser(
         description="Discover and download academic papers from multiple sources"
     )

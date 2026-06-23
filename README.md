@@ -1,6 +1,6 @@
 # Paper Assistant
 
-> 不只是读论文——是**理解**论文。交互式学术论文阅读助手，为 [Claude Code](https://claude.ai/code) 打造。
+> 不只是读论文——是**理解**论文。交互式学术论文阅读助手，基于标准 SKILL.md，可被 [Claude Code](https://claude.ai/code)、Codex 等 agent 平台调用。
 
 <p align="center">
   <b>📄 论文 → 🤖 多轮对话 → 📝 结构化 Obsidian 笔记</b>
@@ -29,9 +29,18 @@ Paper Assistant 把论文阅读变成一个**三阶段对话过程**：
 
 ### 安装
 
+同一份 skill 可被多个 agent 平台调用，只是安装位置不同：
+
 ```bash
+# Claude Code
 git clone https://github.com/GehenHe/paper-assistant-skill.git ~/.claude/skills/paper-assistant/
+
+# Codex（仓库级，从工作目录向上扫描 .agents/skills）
+git clone https://github.com/GehenHe/paper-assistant-skill.git .agents/skills/paper-assistant/
+# 或用户级：~/.codex/skills/paper-assistant/
 ```
+
+SKILL.md 为唯一真相源，跨平台通用——相同的 frontmatter 与正文被两个平台直接读取，差异仅在安装路径。
 
 ### 开始阅读
 
@@ -98,7 +107,7 @@ arXiv HTML 提取 `<figure>` → PDF 提取（`pdfimages` 或 PyMuPDF 兜底）�
 
 ```
 paper-assistant/
-├── SKILL.md                          # Skill 入口（~230 行流程指令）
+├── SKILL.md                          # Skill 入口（流程编排指令，唯一真相源）
 ├── lib/                              # 论文获取独立库
 │   ├── discover.py                   #   多来源论文发现与下载
 │   ├── extract.py                    #   ToC-first 内容提取
@@ -106,13 +115,15 @@ paper-assistant/
 ├── scripts/
 │   └── download_note_images.py       # 后处理：可达性检查 + 本地化
 ├── assets/
-│   └── paper-note-template.md        # Obsidian 笔记模板
+│   ├── paper-note-template.md        # Obsidian 论文笔记模板
+│   └── concept-note-template.md      # 概念笔记模板
 ├── references/
 │   ├── discussion-guide.md           # 8 类问题回答策略
 │   ├── quality-standards.md          # 公式/表格/图片质量规范
 │   ├── image-troubleshooting.md      # 图片获取排错指南
 │   ├── figure-placement.md           # 图表分发放置规则
-│   └── concept-categories.md         # 概念 15 类分类体系
+│   └── concept-guide.md              # 概念库维护指南
+├── CLAUDE.md                         # 架构说明 + 跨平台可移植契约
 └── .gitignore
 ```
 

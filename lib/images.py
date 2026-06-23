@@ -6,7 +6,7 @@ Two-source fallback pipeline:
   Source B: PDF extraction — pdfimages or PyMuPDF/fitz per-page screenshots
 
 Usage:
-    python3 acquire_images.py \\
+    python3 lib/images.py \\
         --arxiv-id 2605.24934 \\
         --output-dir /path/to/assets \\
         --method-name HumanEgo
@@ -21,14 +21,24 @@ Output (JSON to stdout):
 """
 
 import argparse
-import asyncio
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+
+_LIB = Path(__file__).resolve().parent
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+from common import dedup_url, force_utf8_stdout, tmp_path  # noqa: E402
+
+
+def _tmp(filename: str) -> str:
+    """Return a platform-appropriate temp file path as a string."""
+    return str(tmp_path(filename))
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +51,8 @@ def fetch_html(arxiv_id: str) -> Optional[str]:
     try:
         proc = subprocess.run(
             ["curl", "-sL", "--max-time", "30", url],
-            capture_output=True, text=True, timeout=35,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=35,
         )
         if proc.returncode == 0 and proc.stdout:
             return proc.stdout
@@ -66,17 +77,17 @@ def scrape_figures_from_html(html: str) -> list[dict]:
             continue
         url = img_match.group(1)
 
-        # Make relative URLs absolute
+        # Make relative URLs absolute. arXiv HTML <img src> are relative to the
+        # page directory https://arxiv.org/html/ and already include the
+        # versioned id segment (e.g. "2509.25827v2/x1.png").
         if url.startswith("/"):
             url = f"https://arxiv.org{url}"
         elif not url.startswith("http"):
-            # relative to HTML page
-            arxiv_id = extract_arxiv_id_from_url(url) or ""
-            base = f"https://arxiv.org/html/{arxiv_id}"
-            url = f"{base}/{url}"
+            url = f"https://arxiv.org/html/{url.lstrip('/')}"
 
-        # Skip non-figure images (icons, logos, etc.) — figure images are typically xN.png
-        if not re.search(r'x\d+\.(png|jpg|jpeg|gif|webp|svg)', url):
+        # Skip non-figure images (icons, logos, etc.)
+        # arXiv HTML figures are typically xN.png or figures/figN.png
+        if not re.search(r'(x\d+|fig\w*)\.(png|jpg|jpeg|gif|webp|svg)', url, re.IGNORECASE):
             continue
 
         # Extract caption
@@ -111,37 +122,13 @@ def scrape_figures_from_html(html: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# URL utilities
-# ---------------------------------------------------------------------------
-
-def extract_arxiv_id_from_url(url: str) -> Optional[str]:
-    """Extract arxiv_id (e.g. 2605.24934) from a URL."""
-    m = re.search(r'(\d{4}\.\d{4,5})', url)
-    return m.group(1) if m else None
-
-
-def dedup_url(url: str) -> str:
-    """Remove duplicated arxiv_id path segments from a URL.
-
-    Example: .../2603.05312v1/2603.05312v1/x1.png → .../2603.05312v1/x1.png
-    """
-    m = re.search(r'(\d{4}\.\d{4,5}(?:v\d+)?)', url)
-    if not m:
-        return url
-    segment = m.group(1)
-    pattern = f"/{re.escape(segment)}/{re.escape(segment)}/"
-    if re.search(pattern, url):
-        url = url.replace(f"/{segment}/{segment}/", f"/{segment}/", 1)
-    return url
-
-
-# ---------------------------------------------------------------------------
 # PDF extraction
 # ---------------------------------------------------------------------------
 
 def has_pdfimages() -> bool:
     """Check if pdfimages (poppler-utils) is available."""
-    return subprocess.run(["which", "pdfimages"], capture_output=True).returncode == 0
+    cmd = "where" if platform.system() == "Windows" else "which"
+    return subprocess.run([cmd, "pdfimages"], capture_output=True).returncode == 0
 
 
 def has_fitz() -> bool:
@@ -217,7 +204,7 @@ def extract_images_with_fitz(pdf_path: str, output_dir: Path,
 
 def download_pdf(arxiv_id: str) -> Optional[str]:
     """Download arXiv PDF to a temp file. Returns path or None."""
-    pdf_path = f"/tmp/arxiv_{arxiv_id}.pdf"
+    pdf_path = _tmp(f"arxiv_{arxiv_id}.pdf")
     if os.path.exists(pdf_path):
         return pdf_path
     try:
@@ -285,7 +272,6 @@ def extract_figures_from_pdf(arxiv_id: str, output_dir: Path,
 
     figures = []
     for i, fpath in enumerate(image_files):
-        relative = f"{fpath.parent.name}/{fpath.name}"
         figures.append({
             "num": i + 1,
             "caption": "",
@@ -295,29 +281,6 @@ def extract_figures_from_pdf(arxiv_id: str, output_dir: Path,
         })
 
     return figures
-
-
-# ---------------------------------------------------------------------------
-# Magic byte validation
-# ---------------------------------------------------------------------------
-
-def is_valid_image(path: Path) -> bool:
-    """Check magic bytes to verify a file is a real image."""
-    if not path.exists() or path.stat().st_size < 1024:
-        return False
-    try:
-        header = path.read_bytes()[:16]
-        if header[:4] == b"\x89PNG":
-            return True       # PNG
-        if header[:3] == b"\xff\xd8\xff":
-            return True       # JPEG
-        if header[:3] == b"GIF":
-            return True       # GIF
-        if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
-            return True       # WebP
-        return False
-    except Exception:
-        return False
 
 
 # ---------------------------------------------------------------------------
@@ -381,12 +344,15 @@ def acquire_images(arxiv_id: str = None, output_dir: Path = None,
         if f["num"] is None:
             f["num"] = i + 1
 
-    # Format ref_value for url type; strip arXiv HTML's built-in "Fig. X:" prefix
+    # Format ref_value for url type; strip arXiv HTML's built-in
+    # "Figure X:" / "Fig. X:" prefix to avoid doubling it.
     for f in figures:
         if f["ref_type"] == "url":
             num = f["num"]
             caption_text = f["caption"] or f"Figure {num}"
-            caption_text = re.sub(r'^Fig\.\s*\d+[.:]\s*', '', caption_text).strip()
+            caption_text = re.sub(
+                r'^(?:Figure|Fig\.?)\s*\d+\s*[.:]\s*', '', caption_text
+            ).strip()
             f["ref_value"] = f"![Figure {num}: {caption_text}]({f['ref_value']})"
 
     stats["total"] = len(figures)
@@ -396,6 +362,7 @@ def acquire_images(arxiv_id: str = None, output_dir: Path = None,
 
 
 def main():
+    force_utf8_stdout()
     parser = argparse.ArgumentParser(
         description="Acquire paper figures from arXiv HTML or PDF"
     )

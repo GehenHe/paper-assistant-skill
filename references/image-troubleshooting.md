@@ -29,9 +29,13 @@ ar5iv 的 asset 编号（x1.png, x2.png...）**不一定对应论文的 Figure �
 
 ### 来源 C: PDF 提取（最终 fallback）
 ```bash
-wget -O /tmp/paper.pdf "https://arxiv.org/pdf/{arxiv_id}.pdf"
-mkdir -p {笔记所在目录}/assets/
+# Linux/macOS
+curl -sL -o /tmp/paper.pdf "https://arxiv.org/pdf/{arxiv_id}.pdf"
 pdfimages -png /tmp/paper.pdf {笔记所在目录}/assets/{方法名}_fig
+
+# Windows（PowerShell）
+curl -sL -o "$env:TEMP\paper.pdf" "https://arxiv.org/pdf/{arxiv_id}.pdf"
+pdfimages -png "$env:TEMP\paper.pdf" "{笔记所在目录}\assets\{方法名}_fig"
 ```
 提取后验证：文件 >10KB、Read 确认内容正确。
 
@@ -40,7 +44,7 @@ pdfimages -png /tmp/paper.pdf {笔记所在目录}/assets/{方法名}_fig
 arXiv 外链在某些网络环境下不稳定。笔记保存后自动运行可达性检查：
 
 ```bash
-python3 ../daily-papers/download_note_images.py "{笔记路径}"
+python3 {SKILL_ROOT}/scripts/download_note_images.py "{笔记路径}"
 ```
 
 脚本行为：

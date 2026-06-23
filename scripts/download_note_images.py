@@ -12,25 +12,20 @@ For each external image link ![...](https://...):
 import asyncio
 import json
 import os
-import platform
 import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
-
-def _temp_dir():
-    """Platform-appropriate temp directory."""
-    if platform.system() == 'Windows':
-        p = Path.home() / 'tmp'
-    else:
-        p = Path('/tmp')
-    p.mkdir(parents=True, exist_ok=True)
-    return p
+_LIB = Path(__file__).resolve().parent.parent / "lib"
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+from common import extract_arxiv_id, force_utf8_stdout, is_valid_image, tmp_path  # noqa: E402
 
 
 def temp_file_path(filename):
-    return _temp_dir() / filename
+    return tmp_path(filename)
 
 
 CURL_TIMEOUT = 10
@@ -60,12 +55,6 @@ def get_method_name(note_path: Path) -> str:
     return note_path.stem
 
 
-def extract_arxiv_id(url: str) -> str:
-    """Try to extract arxiv_id from a URL."""
-    m = re.search(r"(\d{4}\.\d{4,5})", url)
-    return m.group(1) if m else ""
-
-
 async def check_url(url: str, sem: asyncio.Semaphore) -> bool:
     """Check if a URL is reachable and returns actual image content (not HTML redirect)."""
     async with sem:
@@ -92,30 +81,6 @@ async def check_url(url: str, sem: asyncio.Semaphore) -> bool:
             return False
 
 
-def is_valid_image(path: Path) -> bool:
-    """Check if a file is a real image by inspecting magic bytes, not just size."""
-    if not path.exists() or path.stat().st_size < 1024:
-        return False
-    try:
-        with open(path, "rb") as f:
-            header = f.read(16)
-        # PNG: \x89PNG
-        if header[:4] == b"\x89PNG":
-            return True
-        # JPEG: \xff\xd8\xff
-        if header[:3] == b"\xff\xd8\xff":
-            return True
-        # GIF: GIF87a or GIF89a
-        if header[:3] == b"GIF":
-            return True
-        # WebP: RIFF....WEBP
-        if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
-            return True
-        return False
-    except Exception:
-        return False
-
-
 async def download_image(url: str, dest: Path, sem: asyncio.Semaphore) -> bool:
     """Download an image from URL to dest path. Returns True on success."""
     async with sem:
@@ -138,7 +103,7 @@ async def download_image(url: str, dest: Path, sem: asyncio.Semaphore) -> bool:
 
 
 async def try_pdf_extract(arxiv_id: str, assets_dir: Path, method_name: str,
-                          fig_num: int, sem: asyncio.Semaphore) -> Path | None:
+                          fig_num: int, sem: asyncio.Semaphore) -> Optional[Path]:
     """Try to extract a figure from the arXiv PDF as fallback."""
     if not arxiv_id:
         return None
@@ -270,6 +235,7 @@ async def process_note(note_path: Path) -> dict:
 
 
 def main():
+    force_utf8_stdout()
     if len(sys.argv) < 2:
         print("Usage: python3 download_note_images.py <note.md>", file=sys.stderr)
         sys.exit(1)
