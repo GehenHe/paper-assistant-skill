@@ -1,132 +1,250 @@
-# Paper Assistant
+<div align="center">
 
-> 不只是读论文——是**理解**论文。交互式学术论文阅读助手，基于标准 SKILL.md，可被 [Claude Code](https://claude.ai/code)、Codex 等 agent 平台调用。
+# 📄 Paper Assistant
 
-<p align="center">
-  <b>📄 论文 → 🤖 多轮对话 → 📝 结构化 Obsidian 笔记</b>
-</p>
+### Don't just *read* papers. **Understand** them.
+
+An interactive academic-paper reading agent that turns a PDF or arXiv link into a living, structured Obsidian note — through reading, multi-turn Q&A, and merge-back-into-notes.
+
+[![Stars](https://img.shields.io/github/stars/GehenHe/papernote-assistant-skill?style=for-the-badge&logo=github&color=ffd33d)](https://github.com/GehenHe/papernote-assistant-skill/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-skill-8A63D2?style=for-the-badge)](https://claude.ai/code)
+[![Codex](https://img.shields.io/badge/Codex-compatible-10A37F?style=for-the-badge)](https://developers.openai.com/codex/skills)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](#-contributing)
+
+<samp>📥 Paper&nbsp;&nbsp;→&nbsp;&nbsp;🤖 Multi-turn dialogue&nbsp;&nbsp;→&nbsp;&nbsp;📝 Structured Obsidian note</samp>
+
+</div>
+
+<!--
+═══════════════════════════════════════════════════════════════════
+  HERO DEMO — drop your screenshot/GIF here for maximum star appeal.
+  1. Add the file to  docs/demo.gif  (a 10–20s screen recording of a
+     read → ask → note-updates loop is ideal).
+  2. Delete this comment block and uncomment the <img> line below.
+
+  <p align="center"><img src="docs/demo.gif" alt="Paper Assistant in action" width="820"></p>
+═══════════════════════════════════════════════════════════════════
+-->
+
+> [!NOTE]
+> 🎬 **Live demo coming soon.** In the meantime, scroll to [**See it in action**](#-see-it-in-action) for a real generated note.
 
 ---
 
-## 为什么用 Paper Assistant？
+## 💡 Why Paper Assistant?
 
-读论文最耗时的不是"读"本身，而是**建立理解**。传统工具能帮你翻译、总结、甚至画思维导图——但理解一个方法为什么这样设计、一个公式里每个符号的含义、一个实验结论对自己研究方向意味着什么，只能在对话中建立。
+Reading a paper isn't the hard part. **Understanding it is.**
 
-Paper Assistant 把论文阅读变成一个**三阶段对话过程**：
+Summarizers and translators give you a *digest* — but they can't tell you *why* a method is designed the way it is, what each symbol in an equation means, or what a result implies for **your own** research direction. That understanding only gets built in conversation.
 
+Paper Assistant treats a paper note as **alive**: the first read is just a skeleton — understanding accrues as you ask questions, and every insight is merged back into a permanent, searchable note.
+
+```mermaid
+flowchart LR
+    A["📄 Paper<br/>(arXiv · PDF · title)"] --> B["① Read<br/>build the skeleton note"]
+    B --> C["② Discuss<br/>multi-turn grounded Q&A"]
+    C --> D["③ Merge<br/>fold insights back in"]
+    D --> E["📝 Living Obsidian note<br/>formulas · figures · concept graph"]
+    C -.->|"resume anytime"| C
+    style A fill:#e8f0fe,stroke:#4285f4,color:#000
+    style E fill:#e6f4ea,stroke:#34a853,color:#000
+    style B fill:#fff,stroke:#8A63D2,color:#000
+    style C fill:#fff,stroke:#8A63D2,color:#000
+    style D fill:#fff,stroke:#8A63D2,color:#000
 ```
-初读建骨架 ────────▶ 多轮问答深化 ────────▶ 融合完善笔记
-(5 min)              (你来主导节奏)            (自动)
-```
 
-| 阶段 | 做什么 | 产出 |
-|------|--------|------|
-| **Phase 1** 初读 | 自动提取论文核心信息，生成结构化 Obsidian 笔记（含公式、图表、元数据） | 完整初稿笔记 |
-| **Phase 2** 问答 | 围绕论文自由提问——方法细节、公式推导、实验设计、与你的研究方向的关系 | 讨论记录（保留推理过程） |
-| **Phase 3** 融合 | 将讨论中沉淀的理解补充到笔记对应章节，概念链接自动补全 | 最终深度笔记 |
+| Phase | What happens | You get |
+|:--|:--|:--|
+| **① Read** | Auto-extracts the paper's core: contributions, problem, method, experiments, figures, formulas — into a structured note | A complete first-draft note |
+| **② Discuss** | Ask anything — method details, equation derivations, experiment design, relevance to your field. Answers are grounded in the paper, with section/figure/equation anchors | A discussion log that keeps the *reasoning*, not just conclusions |
+| **③ Merge** | Distilled understanding is folded back into the right sections; concept `[[wikilinks]]` are auto-created and backlinked | A deep, permanent note + a growing concept graph |
 
-## 怎么用
+---
 
-### 安装
+## ✨ Features
 
-同一份 skill 可被多个 agent 平台调用，只是安装位置不同：
+| | Feature | What it does |
+|:-:|:--|:--|
+| 🧠 | **8 tailored Q&A strategies** | Concept explanation, problem-framing, design rationale, comparison, critique… each question type gets a different response depth and structure |
+| 🔎 | **Multi-source discovery** | arXiv HTML→PDF fallback; title → arXiv search → HuggingFace → project page; local PDF. Never assumes everything lives on arXiv |
+| 📖 | **Long-paper smart extraction** | >30 pages auto-triggers a ToC-first strategy: Intro (full) → Method (skim) → Main results → Conclusion |
+| 🖼️ | **Automatic figure capture** | Pulls `<figure>` images from arXiv HTML, falls back to `pdfimages`/PyMuPDF, dedupes URLs, and checks reachability — never writes a reference to an image that doesn't exist |
+| 🔗 | **Bidirectional concept graph** | Technical terms become `[[wikilinks]]`; each concept note backlinks every paper that uses it |
+| 🧩 | **One source, many platforms** | A single standard `SKILL.md` runs unchanged on Claude Code, Codex, and other agent hosts |
+
+---
+
+## 👀 See it in action
+
+> A trimmed excerpt of a note Paper Assistant generated for *"Overthinking Reduction with Decoupled Rewards and Curriculum Data Scheduling"* (ICLR 2026).
+
+````markdown
+---
+title: "Overthinking Reduction with Decoupled Rewards and Curriculum Data Scheduling"
+method_name: "DeCS"
+year: 2025
+venue: "ICLR 2026 Oral"
+tags: [overthinking, reasoning, RLVR, GRPO, curriculum-learning]
+status: enriched
+discussion_rounds: 4
+---
+
+## 一句话总结
+> DeCS 用解耦 token 级奖励 + 课程调度，在 7 个 benchmark 上将推理 token 减少 ~50%，
+> 同时维持或提升 pass@1。
+
+![Figure 1: Motivation and Overview](https://arxiv.org/html/2509.25827v2/x1.png)
+
+## 方法概览 › 解耦 Token 级奖励
+$$
+r_{i,j} = \begin{cases}
+r_+ \cdot \mathbf{1}_{\text{correct}} & j \leq K^* \\
+\left(r_0 - (r_+ - r_0)\tfrac{L_i}{L_{\max}}\right)\cdot \mathbf{1}_{\text{correct}} & j > K^*
+\end{cases}
+$$
+NRP 内 token 给正奖励；NRP 后的冗余 token 按长度比例衰减。关联概念：[[必要推理前缀]] · [[GRPO]]
+
+## 讨论与问答
+### 话题1: 现有长度惩罚的两个根本缺陷  `2026-06-14`
+**关键结论**: 缺陷一里一外——NRP 内被误伤、NRP 后逃过惩罚。根因是 trajectory 级
+奖励粒度不够，DeCS 改为 token 级分段赋奖励…
+````
+
+**The note carries real structure:** YAML frontmatter, rendered LaTeX, embedded figures, `[[concept]]` links, and a discussion log that preserves *how* the understanding was built — all ready to open in Obsidian.
+
+---
+
+## 🚀 Quick start
+
+### 1. Install
+
+A single skill, installed wherever your agent looks for skills:
 
 ```bash
 # Claude Code
-git clone https://github.com/GehenHe/paper-assistant-skill.git ~/.claude/skills/paper-assistant/
+git clone https://github.com/GehenHe/papernote-assistant-skill.git ~/.claude/skills/paper-assistant
 
-# Codex（仓库级，从工作目录向上扫描 .agents/skills）
-git clone https://github.com/GehenHe/paper-assistant-skill.git .agents/skills/paper-assistant/
-# 或用户级：~/.codex/skills/paper-assistant/
+# Codex (repo-level — scanned from your cwd up to the repo root)
+git clone https://github.com/GehenHe/papernote-assistant-skill.git .agents/skills/paper-assistant
 ```
 
-SKILL.md 为唯一真相源，跨平台通用——相同的 frontmatter 与正文被两个平台直接读取，差异仅在安装路径。
+> [!TIP]
+> `SKILL.md` is the single source of truth — the **same** frontmatter and body are read by every platform. Only the install path differs.
 
-### 开始阅读
+### 2. Read a paper
 
-```
-# arXiv 链接
-读论文 https://arxiv.org/abs/2512.08924
-
-# 论文标题（自动搜索 arXiv / HuggingFace / GitHub）
-读论文 Efficiently Reconstructing Dynamic Scenes One D4RT at a Time
-
-# 本地 PDF
-读论文 /path/to/paper.pdf
+```text
+读论文 https://arxiv.org/abs/2509.25827          # arXiv link
+读论文 Attention Is All You Need                  # title (auto-searches sources)
+读论文 /path/to/paper.pdf                          # local PDF
 ```
 
-### 继续讨论
+### 3. Discuss, then resume anytime
 
-```
-继续讨论 D4RT
-```
-
-## 特性
-
-### 智能问答策略
-
-Phase 2 不是简单的 Q&A——针对 8 类问题有**不同的回答策略**：
-
-- **概念解释**：逐层展开（定义 → 原理 → 设计细节 → 与已知概念关联）
-- **问题定位**：用最简单的话说清"这篇论文到底做了什么"
-- **设计动机**：区分"作者为什么选这个"和"客观上为什么这是好的"
-- **对比分析**：跨论文建立连接，引用之前读过的论文内容
-- [完整策略](references/discussion-guide.md)
-
-### 多来源论文发现
-
-不再假设所有论文都在 arXiv：
-
-```
-arXiv 链接 → HTML 优先 → PDF 兜底
-论文标题 → arXiv 搜索 → HuggingFace 直链 → GitHub → 官网
-本地 PDF → 直接读取
+```text
+继续讨论 DeCS                                      # pick up where you left off
 ```
 
-### 长论文智能提取
+> The reading experience and generated notes are **in Chinese by default** (the skill targets a Chinese research-notes workflow); the trigger phrases above work in both Chinese and English.
 
->30 页自动启用目录优先策略：ToC → Introduction（全文）→ Method（跳读）→ Main Results → Conclusion。Appendix 默认跳过。
+---
 
-### 图片自动获取
+## 🏗️ How it works
 
-arXiv HTML 提取 `<figure>` → PDF 提取（`pdfimages` 或 PyMuPDF 兜底）→ URL 去重 → 可达性检查。图片落地前不会写入不存在的引用。
+A four-layer modular design — `SKILL.md` is the conductor, not the orchestra.
 
-## 笔记示例
-
-生成的 Obsidian 笔记包含完整的 YAML frontmatter、结构化章节（元信息 / 核心贡献 / 问题背景 / 方法概览 / 实验 / 讨论与问答 / 深入分析）、公式渲染、概念双向链接、图表嵌入。
-
-## 依赖
-
-| 依赖 | 级别 | 说明 |
-|------|:---:|------|
-| `curl` | 必需 | 图片可达性检测 |
-| `poppler-utils` | 可选 | PDF 图片提取（无则用 PyMuPDF 兜底） |
-| `PyMuPDF` | 可选 | PDF 图片兜底方案 |
-
-## 项目结构
-
+```mermaid
+flowchart TD
+    SK["📘 SKILL.md<br/><i>orchestration · single source of truth</i>"]
+    subgraph Automation [" lib/ — Python automation "]
+        D["discover.py<br/>multi-source fetch"]
+        E["extract.py<br/>ToC-first extraction"]
+        I["images.py<br/>figure pipeline"]
+        C["common.py<br/>shared helpers"]
+    end
+    subgraph Guides [" references/ — loaded on demand "]
+        G1["discussion-guide · quality-standards"]
+        G2["figure-placement · concept-guide"]
+    end
+    subgraph Templates [" assets/ — output templates "]
+        T1["paper-note-template"]
+        T2["concept-note-template"]
+    end
+    P["scripts/<br/>post-process: image reachability"]
+    SK --> Automation
+    SK --> Guides
+    SK --> Templates
+    SK --> P
+    D & E & I --> C
+    style SK fill:#8A63D2,stroke:#5b3aa0,color:#fff
 ```
+
+- **`SKILL.md`** — phase-level orchestration (WHAT + WHEN). Stays lean and tool-agnostic.
+- **`lib/*.py`** — CLI-callable automation with JSON output; degrades gracefully and the agent can always fall back to fetching directly.
+- **`references/*.md`** — detailed guides loaded only at the phase that needs them.
+- **`assets/*.md`** — templates for the generated paper and concept notes.
+
+---
+
+## 📦 Requirements
+
+| Dependency | Level | Notes |
+|:--|:-:|:--|
+| `curl` | **required** | image reachability checks |
+| `PyMuPDF` (`pip install pymupdf`) | optional | enables proper page-aware long-paper extraction |
+| `poppler-utils` (`pdfimages`) | optional | PDF figure extraction fallback |
+
+> [!NOTE]
+> Works cross-platform (Windows / macOS / Linux). Temp paths, shell tool checks, and text encoding are all handled per-platform — no Unix-only assumptions.
+
+<details>
+<summary>📁 <b>Project structure</b></summary>
+
+```text
 paper-assistant/
-├── SKILL.md                          # Skill 入口（流程编排指令，唯一真相源）
-├── lib/                              # 论文获取独立库
-│   ├── discover.py                   #   多来源论文发现与下载
-│   ├── extract.py                    #   ToC-first 内容提取
-│   └── images.py                     #   图片获取管线
+├── SKILL.md                      # Skill entry — orchestration, single source of truth
+├── lib/                          # Python automation library
+│   ├── discover.py               #   multi-source paper discovery & download
+│   ├── extract.py                #   ToC-first content extraction
+│   ├── images.py                 #   figure acquisition pipeline
+│   └── common.py                 #   shared helpers (paths, ids, encoding)
 ├── scripts/
-│   └── download_note_images.py       # 后处理：可达性检查 + 本地化
+│   └── download_note_images.py   # post-process: reachability check + localization
 ├── assets/
-│   ├── paper-note-template.md        # Obsidian 论文笔记模板
-│   └── concept-note-template.md      # 概念笔记模板
+│   ├── paper-note-template.md    # Obsidian paper-note template
+│   └── concept-note-template.md  # concept-note template
 ├── references/
-│   ├── discussion-guide.md           # 8 类问题回答策略
-│   ├── quality-standards.md          # 公式/表格/图片质量规范
-│   ├── image-troubleshooting.md      # 图片获取排错指南
-│   ├── figure-placement.md           # 图表分发放置规则
-│   └── concept-guide.md              # 概念库维护指南
-├── CLAUDE.md                         # 架构说明 + 跨平台可移植契约
-└── .gitignore
+│   ├── discussion-guide.md       # 8 Q&A response strategies
+│   ├── quality-standards.md      # formula / table / figure quality rules
+│   ├── image-troubleshooting.md  # figure-acquisition troubleshooting
+│   ├── figure-placement.md       # figure distribution rules
+│   └── concept-guide.md          # concept-library maintenance guide
+└── CLAUDE.md                     # architecture + cross-platform portability contract
 ```
 
-## License
+</details>
 
-MIT
+---
+
+## 🗺️ Roadmap
+
+- [ ] Live demo GIF in the hero
+- [ ] Zotero source resolution
+- [ ] Per-direction "Map of Content" index generation
+- [ ] English note-output mode
+
+---
+
+## 🤝 Contributing
+
+Issues and PRs are welcome — bug reports, new Q&A strategies, additional source resolvers, or platform adapters.
+`SKILL.md` is the single source of truth; keep its body tool-agnostic so it stays portable across agent platforms (see [`CLAUDE.md`](CLAUDE.md)).
+
+## ⭐ Star this repo
+
+If Paper Assistant saves you time on your next paper, a star helps others find it — and motivates continued work.
+
+## 📄 License
+
+[MIT](LICENSE)
